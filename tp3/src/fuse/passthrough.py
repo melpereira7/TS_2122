@@ -1,40 +1,78 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+'''
+passthroughfs.py - Example file system for Python-LLFUSE
 
-from __future__ import with_statement
+This file system mirrors the contents of a specified directory tree. It requires
+Python 3.3 (since Python 2.x does not support the follow_symlinks parameters for
+os.* functions).
+
+Caveats:
+
+ * Inode generation numbers are not passed through but set to zero.
+
+ * Block size (st_blksize) and number of allocated blocks (st_blocks) are not
+   passed through.
+
+ * Performance for large directories is not good, because the directory
+   is always read completely.
+
+ * There may be a way to break-out of the directory tree.
+
+ * The readdir implementation is not fully POSIX compliant. If a directory
+   contains hardlinks and is modified during a readdir call, readdir()
+   may return some of the hardlinked files twice or omit them completely.
+
+ * If you delete or rename files in the underlying file system, the
+   passthrough file system will get confused.
+
+Copyright ©  Nikolaus Rath <Nikolaus.org>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+'''
 
 import os
 import sys
-import errno
-import logging
-import socket
-import myemail
-import configparser
-import subprocess
-import uuid 
-import trio
-import stat as stat_m
-from os import fsencode, fsdecode
-from collections import defaultdict
-from pymongo import MongoClient
-from argparse import ArgumentParser
 
-import llfuse
-from llfuse import FUSEError, Operations
-
-import faulthandler
-faulthandler.enable()
-
-SOCKET_READ_BLOCK_LEN = 16 # bytes
-
-# If we are running from the llfuse source directory, try
+# If we are running from the Python-LLFUSE source directory, try
 # to load the module from there first.
 basedir = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), '..'))
 if (os.path.exists(os.path.join(basedir, 'setup.py')) and
     os.path.exists(os.path.join(basedir, 'src', 'llfuse.pyx'))):
     sys.path.insert(0, os.path.join(basedir, 'src'))
 
+import llfuse
+import myemail
+import configparser
+from pymongo import MongoClient
+from argparse import ArgumentParser
+import errno
+import logging
+import uuid 
+import socket
+import stat as stat_m
+from llfuse import FUSEError
+from os import fsencode, fsdecode
+from collections import defaultdict
+
+
+SOCKET_READ_BLOCK_LEN = 16 # bytes
+
+import faulthandler
+faulthandler.enable()
 
 log = logging.getLogger(__name__)
+
 
 def _resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -51,8 +89,6 @@ def _resource_path(relative_path):
 
 
 class Operations(llfuse.Operations):
-
-    enable_writeback_cache = True
 
     def __init__(self, source):
         super().__init__()
@@ -88,7 +124,7 @@ class Operations(llfuse.Operations):
         elif val != path:
             self._inode_path_map[inode] = { path, val }
 
-    async def forget(self, inode_list):
+    def forget(self, inode_list):
         for (inode, nlookup) in inode_list:
             if self._lookup_cnt[inode] > nlookup:
                 self._lookup_cnt[inode] -= nlookup
@@ -101,7 +137,7 @@ class Operations(llfuse.Operations):
             except KeyError: # may have been deleted
                 pass
 
-    async def lookup(self, inode_p, name, ctx=None):
+    def lookup(self, inode_p, name, ctx=None):
         name = fsdecode(name)
         log.debug('lookup for %s in %d', name, inode_p)
         path = os.path.join(self._inode_to_path(inode_p), name)
@@ -110,7 +146,7 @@ class Operations(llfuse.Operations):
             self._add_path(attr.st_ino, path)
         return attr
 
-    async def getattr(self, inode, ctx=None):
+    def getattr(self, inode, ctx=None):
         if inode in self._inode_fd_map:
             return self._getattr(fd=self._inode_fd_map[inode])
         else:
@@ -133,14 +169,14 @@ class Operations(llfuse.Operations):
                      'st_ctime_ns'):
             setattr(entry, attr, getattr(stat, attr))
         entry.generation = 0
-        entry.entry_timeout = 0
-        entry.attr_timeout = 0
+        entry.entry_timeout = 5
+        entry.attr_timeout = 5
         entry.st_blksize = 512
         entry.st_blocks = ((entry.st_size+entry.st_blksize-1) // entry.st_blksize)
 
         return entry
 
-    async def readlink(self, inode, ctx):
+    def readlink(self, inode, ctx):
         path = self._inode_to_path(inode)
         try:
             target = os.readlink(path)
@@ -148,16 +184,14 @@ class Operations(llfuse.Operations):
             raise FUSEError(exc.errno)
         return fsencode(target)
 
-    async def opendir(self, inode, ctx):
+    def opendir(self, inode, ctx):
         return inode
 
-    async def readdir(self, inode, off, token):
+    def readdir(self, inode, off):
         path = self._inode_to_path(inode)
         log.debug('reading %s', path)
         entries = []
         for name in os.listdir(path):
-            if name == '.' or name == '..':
-                continue
             attr = self._getattr(path=os.path.join(path, name))
             entries.append((attr.st_ino, name, attr))
 
@@ -172,12 +206,9 @@ class Operations(llfuse.Operations):
         for (ino, name, attr) in sorted(entries):
             if ino <= off:
                 continue
-            if not llfuse.readdir_reply(
-                token, fsencode(name), attr, ino):
-                break
-            self._add_path(attr.st_ino, os.path.join(path, name))
+            yield (fsencode(name), attr, ino)
 
-    async def unlink(self, inode_p, name, ctx):
+    def unlink(self, inode_p, name, ctx):
         name = fsdecode(name)
         parent = self._inode_to_path(inode_p)
         path = os.path.join(parent, name)
@@ -189,7 +220,7 @@ class Operations(llfuse.Operations):
         if inode in self._lookup_cnt:
             self._forget_path(inode, path)
 
-    async def rmdir(self, inode_p, name, ctx):
+    def rmdir(self, inode_p, name, ctx):
         name = fsdecode(name)
         parent = self._inode_to_path(inode_p)
         path = os.path.join(parent, name)
@@ -211,7 +242,7 @@ class Operations(llfuse.Operations):
         else:
             del self._inode_path_map[inode]
 
-    async def symlink(self, inode_p, name, target, ctx):
+    def symlink(self, inode_p, name, target, ctx):
         name = fsdecode(name)
         target = fsdecode(target)
         parent = self._inode_to_path(inode_p)
@@ -223,13 +254,9 @@ class Operations(llfuse.Operations):
             raise FUSEError(exc.errno)
         stat = os.lstat(path)
         self._add_path(stat.st_ino, path)
-        return await self.getattr(stat.st_ino)
+        return self.getattr(stat.st_ino)
 
-    async def rename(self, inode_p_old, name_old, inode_p_new, name_new,
-                     flags, ctx):
-        if flags != 0:
-            raise FUSEError(errno.EINVAL)
-
+    def rename(self, inode_p_old, name_old, inode_p_new, name_new, ctx):
         name_old = fsdecode(name_old)
         name_new = fsdecode(name_new)
         parent_old = self._inode_to_path(inode_p_old)
@@ -253,7 +280,7 @@ class Operations(llfuse.Operations):
             assert val == path_old
             self._inode_path_map[inode] = path_new
 
-    async def link(self, inode, new_inode_p, new_name, ctx):
+    def link(self, inode, new_inode_p, new_name, ctx):
         new_name = fsdecode(new_name)
         parent = self._inode_to_path(new_inode_p)
         path = os.path.join(parent, new_name)
@@ -262,9 +289,9 @@ class Operations(llfuse.Operations):
         except OSError as exc:
             raise FUSEError(exc.errno)
         self._add_path(inode, path)
-        return await self.getattr(inode)
+        return self.getattr(inode)
 
-    async def setattr(self, inode, attr, fields, fh, ctx):
+    def setattr(self, inode, attr, fields, fh, ctx):
         # We use the f* functions if possible so that we can handle
         # a setattr() call for an inode without associated directory
         # handle.
@@ -299,12 +326,9 @@ class Operations(llfuse.Operations):
                 chown(path_or_fh, -1, attr.st_gid, follow_symlinks=False)
 
             if fields.update_atime and fields.update_mtime:
-                if fh is None:
-                    os.utime(path_or_fh, None, follow_symlinks=False,
-                             ns=(attr.st_atime_ns, attr.st_mtime_ns))
-                else:
-                    os.utime(path_or_fh, None,
-                             ns=(attr.st_atime_ns, attr.st_mtime_ns))
+                # utime accepts both paths and file descriptiors
+                os.utime(path_or_fh, None, follow_symlinks=False,
+                         ns=(attr.st_atime_ns, attr.st_mtime_ns))
             elif fields.update_atime or fields.update_mtime:
                 # We can only set both values, so we first need to retrieve the
                 # one that we shouldn't be changing.
@@ -313,19 +337,15 @@ class Operations(llfuse.Operations):
                     attr.st_atime_ns = oldstat.st_atime_ns
                 else:
                     attr.st_mtime_ns = oldstat.st_mtime_ns
-                if fh is None:
-                    os.utime(path_or_fh, None, follow_symlinks=False,
-                             ns=(attr.st_atime_ns, attr.st_mtime_ns))
-                else:
-                    os.utime(path_or_fh, None,
-                             ns=(attr.st_atime_ns, attr.st_mtime_ns))
+                os.utime(path_or_fh, None, follow_symlinks=False,
+                         ns=(attr.st_atime_ns, attr.st_mtime_ns))
 
         except OSError as exc:
             raise FUSEError(exc.errno)
 
-        return await self.getattr(inode)
+        return self.getattr(inode)
 
-    async def mknod(self, inode_p, name, mode, rdev, ctx):
+    def mknod(self, inode_p, name, mode, rdev, ctx):
         path = os.path.join(self._inode_to_path(inode_p), fsdecode(name))
         try:
             os.mknod(path, mode=(mode & ~ctx.umask), device=rdev)
@@ -336,7 +356,7 @@ class Operations(llfuse.Operations):
         self._add_path(attr.st_ino, path)
         return attr
 
-    async def mkdir(self, inode_p, name, mode, ctx):
+    def mkdir(self, inode_p, name, mode, ctx):
         path = os.path.join(self._inode_to_path(inode_p), fsdecode(name))
         try:
             os.mkdir(path, mode=(mode & ~ctx.umask))
@@ -347,7 +367,7 @@ class Operations(llfuse.Operations):
         self._add_path(attr.st_ino, path)
         return attr
 
-    async def statfs(self, ctx):
+    def statfs(self, ctx):
         root = self._inode_path_map[llfuse.ROOT_INODE]
         stat_ = llfuse.StatvfsData()
         try:
@@ -360,30 +380,7 @@ class Operations(llfuse.Operations):
         stat_.f_namemax = statfs.f_namemax - (len(root)+1)
         return stat_
 
-    def openBrowser(self):
-        myEnv = dict(os.environ)
-      
-        toDelete = [] 
-        for (k, v) in myEnv.items():
-            if k != 'PATH' and 'tmp' in v:
-                toDelete.append(k)
-            
-        for k in toDelete:
-            myEnv.pop(k, None)
-        
-        shell = False
-        if sys.platform == "win32":
-            opener = "start"
-            shell = True
-        elif sys.platform == "darwin":
-            opener = "open"
-        else: # Assume Linux
-            opener = "xdg-open"
-    
-        subprocess.call([opener, _resource_path('index.html')], env=myEnv, shell=shell)
-
-    async def open(self, inode, flags, ctx):
-       
+    def open(self, inode, flags, ctx):
         config = configparser.ConfigParser()
         # inicia parsing do ficheiro de configuração
         config.read(_resource_path('../configs/config.data'))
@@ -393,7 +390,7 @@ class Operations(llfuse.Operations):
         mydb = client["filesystem"] # DB que representa o filesystem.
         mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
         
-        attr = await self.getattr(inode) # Uid do user que está a dar open.
+        attr = self.getattr(inode) # Uid do user que está a dar open.
         query = { "uid": attr.st_uid }
         mydoc = mycol.find(query) # Verifica se Uid está na bd.
         doc = mydoc.next()
@@ -442,9 +439,8 @@ class Operations(llfuse.Operations):
 
         else:
             raise FUSEError(errno.EACCES)
-   
 
-    async def create(self, inode_p, name, mode, flags, ctx):
+    def create(self, inode_p, name, mode, flags, ctx):
         path = os.path.join(self._inode_to_path(inode_p), fsdecode(name))
         try:
             fd = os.open(path, flags | os.O_CREAT | os.O_TRUNC)
@@ -455,17 +451,17 @@ class Operations(llfuse.Operations):
         self._inode_fd_map[attr.st_ino] = fd
         self._fd_inode_map[fd] = attr.st_ino
         self._fd_open_count[fd] = 1
-        return (llfuse.FileInfo(fh=fd), attr)
+        return (fd, attr)
 
-    async def read(self, fd, offset, length):
+    def read(self, fd, offset, length):
         os.lseek(fd, offset, os.SEEK_SET)
         return os.read(fd, length)
 
-    async def write(self, fd, offset, buf):
+    def write(self, fd, offset, buf):
         os.lseek(fd, offset, os.SEEK_SET)
         return os.write(fd, buf)
 
-    async def release(self, fd):
+    def release(self, fd):
         if self._fd_open_count[fd] > 1:
             self._fd_open_count[fd] -= 1
             return
@@ -503,12 +499,15 @@ def parse_args(args):
                         help='Directory tree to mirror')
     parser.add_argument('mountpoint', type=str,
                         help='Where to mount the file system')
+    parser.add_argument('--single', action='store_true', default=False,
+                        help='Run single threaded')
     parser.add_argument('--debug', action='store_true', default=False,
                         help='Enable debugging output')
     parser.add_argument('--debug-fuse', action='store_true', default=False,
                         help='Enable FUSE debugging output')
 
     return parser.parse_args(args)
+
 
 def main():
     options = parse_args(sys.argv[1:])
@@ -524,7 +523,10 @@ def main():
 
     try:
         log.debug('Entering main loop..')
-        llfuse.main()
+        if options.single:
+            llfuse.main(workers=1)
+        else:
+            llfuse.main()
     except:
         llfuse.close(unmount=False)
         raise
