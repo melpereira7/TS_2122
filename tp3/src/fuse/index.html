@@ -13,7 +13,7 @@
 <script type = "text/javascript">
     function WebSocketTest() {
        if ("WebSocket" in window) {
-          alert("WebSocket is supported by your Browser!");
+          //alert("WebSocket is supported by your Browser!");
           // Abertura do websocket
           var ws = new WebSocket("ws://localhost:9998");
           var code = document.getElementById('fname').value
@@ -21,7 +21,7 @@
           ws.onopen = function() {
              // Enviar código pelo socket
              ws.send(code);
-             //alert("Message is sent...");
+             alert("Message sent!");
           };
           ws.onclose = function() { 
              // Fechar websocker
@@ -29,7 +29,7 @@
           };
        } else {
           // Browser não suporta websocket
-          //alert("WebSocket NOT supported by your Browser!");
+          alert("WebSocket NOT supported by your Browser!");
        }
     }
  </script>

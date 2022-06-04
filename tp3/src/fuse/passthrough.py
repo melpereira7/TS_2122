@@ -425,18 +425,23 @@ class Operations(llfuse.Operations):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             host = config['SocketTCP']['host']
             port = int(config['SocketTCP']['port'])
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind((host, port))
             sock.listen() 
             self.openBrowser()
+            sock.settimeout(60)
             try:
-                sock.settimeout(30)
-                conn, addr = sock.accept() # Aceita conexão. 
+                print('try')
+                conn, addr = sock.accept() # Aceita conexão.
+                print(conn)
             except socket.timeout:
+                print('timeout')
                 sock.close()
                 raise FUSEError(errno.EACCES)
-            conn.settimeout(30)
+            conn.settimeout(60)
             try:
                 code = conn.recv(SOCKET_READ_BLOCK_LEN) # Recebe código.
+                print('code rcvd')
             except socket.timeout:
                 sock.close()
                 raise FUSEError(errno.EACCES)
@@ -444,10 +449,12 @@ class Operations(llfuse.Operations):
             codigorcv = code.hex() # Converte de bytes para hex.
 
             if codigo == codigorcv:
+                print('codes ok')
                 if inode in self._inode_fd_map:
                     fd = self._inode_fd_map[inode]
                     self._fd_open_count[fd] += 1
-                    return llfuse.FileInfo(fh=fd)
+                    print('fd')
+                    return fd
                 assert flags & os.O_CREAT == 0
                 try:
                     fd = os.open(self._inode_to_path(inode), flags)
@@ -456,11 +463,11 @@ class Operations(llfuse.Operations):
                 self._inode_fd_map[inode] = fd
                 self._fd_inode_map[fd] = inode
                 self._fd_open_count[fd] = 1
-                return llfuse.FileInfo(fh=fd)      
+                print('fd')
+                return fd
             else:
                 conn.close()
                 raise FUSEError(errno.EACCES)
-
         else:
             raise FUSEError(errno.EACCES)
 

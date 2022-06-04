@@ -27,8 +27,9 @@ async def connect(websocket, path):
     host = config['SocketTCP']['host']
     port = int(config['SocketTCP']['port'])
     sock.connect((host, port)) # conecta-se ao ao socker do filesystem
-    sock.sendall(bytes.fromhex(code)) # invia input para socket no filesystem
+    sock.send(bytes.fromhex(code)) # envia input para socket no filesystem
 
+    
 start_server = websockets.serve(connect, "localhost", 9998)
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()

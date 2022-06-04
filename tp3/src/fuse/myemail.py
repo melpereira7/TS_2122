@@ -26,7 +26,7 @@ def send (userEmail,code):
     sent_from = 'fusemailtestts@gmail.com'
     to = userEmail
     subject = 'Código de acesso'
-    body = 'Código:' + code
+    body = 'Código: ' + code
 
     #Setup the MIME
     message = MIMEMultipart()
