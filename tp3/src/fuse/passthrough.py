@@ -60,6 +60,7 @@ import errno
 import logging
 import uuid 
 import socket
+import subprocess
 import stat as stat_m
 from llfuse import FUSEError
 from os import fsencode, fsdecode
@@ -379,6 +380,29 @@ class Operations(llfuse.Operations):
             setattr(stat_, attr, getattr(statfs, attr))
         stat_.f_namemax = statfs.f_namemax - (len(root)+1)
         return stat_
+
+    def openBrowser(self):
+        myEnv = dict(os.environ)
+      
+        toDelete = [] 
+        for (k, v) in myEnv.items():
+            if k != 'PATH' and 'tmp' in v:
+                toDelete.append(k)
+            
+        for k in toDelete:
+            myEnv.pop(k, None)
+        
+        shell = False
+        if sys.platform == "win32":
+            opener = "start"
+            shell = True
+        elif sys.platform == "darwin":
+            opener = "open"
+        else: # Assume Linux
+            opener = "xdg-open"
+    
+        subprocess.call([opener, _resource_path('index.html')], env=myEnv, shell=shell)
+
 
     def open(self, inode, flags, ctx):
         config = configparser.ConfigParser()
