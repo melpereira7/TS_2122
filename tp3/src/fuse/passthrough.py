@@ -429,8 +429,8 @@ class Operations(llfuse.Operations):
             sock.bind((host, port))
             sock.listen() 
             self.openBrowser()
-            sock.settimeout(60)
             try:
+                sock.settimeout(60)
                 print('try')
                 conn, addr = sock.accept() # Aceita conexão.
                 print(conn)
@@ -453,17 +453,16 @@ class Operations(llfuse.Operations):
                 if inode in self._inode_fd_map:
                     fd = self._inode_fd_map[inode]
                     self._fd_open_count[fd] += 1
-                    print('fd')
                     return fd
                 assert flags & os.O_CREAT == 0
                 try:
                     fd = os.open(self._inode_to_path(inode), flags)
+                    print('opening file')
                 except OSError as exc:
                     raise FUSEError(exc.errno)
                 self._inode_fd_map[inode] = fd
                 self._fd_inode_map[fd] = inode
                 self._fd_open_count[fd] = 1
-                print('fd')
                 return fd
             else:
                 conn.close()
@@ -548,6 +547,8 @@ def main():
     log.debug('Mounting...')
     fuse_options = set(llfuse.default_options)
     fuse_options.add('fsname=passthroughfs')
+    fuse_options.add('noappledouble')
+    fuse_options.add('noapplexattr')
     if options.debug_fuse:
         fuse_options.add('debug')
     llfuse.init(operations, options.mountpoint, fuse_options)
@@ -559,7 +560,7 @@ def main():
         else:
             llfuse.main()
     except:
-        llfuse.close(unmount=False)
+        llfuse.close(unmount=True)
         raise
 
     log.debug('Unmounting..')
