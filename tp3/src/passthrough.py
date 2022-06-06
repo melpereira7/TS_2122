@@ -43,6 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import os
 import sys
+import threading
 
 # If we are running from the Python-LLFUSE source directory, try
 # to load the module from there first.
@@ -65,6 +66,9 @@ import stat as stat_m
 from llfuse import FUSEError
 from os import fsencode, fsdecode
 from collections import defaultdict
+from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
+from PyQt5.QtCore import QThread
 
 
 SOCKET_READ_BLOCK_LEN = 16 # bytes
@@ -74,19 +78,44 @@ faulthandler.enable()
 
 log = logging.getLogger(__name__)
 
+class Popup(QMainWindow):
 
-def _resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-        if(relative_path.split("/")[-1]=="config.data"):
-            return os.path.join(base_path, "config.data")
-        else:
-            return os.path.join(base_path, "index.html")
-    except Exception:
-        base_path = os.path.abspath(".")
-        return os.path.join(base_path, relative_path)
+        def __init__(self) -> None:
+            super().__init__()
+            self.title = 'Código de acesso'
+            self.left = 400
+            self.top = 400
+            self.width = 300
+            self.height = 150
+            self.textboxvalue=''
+            self.popup()
+
+        def closewin(self):
+            self.textboxvalue = self.textbox.text()
+            self.close()
+
+        def gettextboxvalue(self):
+            return self.textboxvalue
+
+        def popup(self):
+            self.setWindowTitle(self.title)
+            self.setGeometry(self.left, self.top, self.width, self.height)
+
+            label = QLabel(self)
+            label.setText("Introduz o código de acesso:") 
+            label.move(20, 0)
+            label.resize(280,40)
+
+            self.textbox = QtWidgets.QLineEdit(self)
+            self.textbox.move(20, 40)
+            self.textbox.resize(260,40)
+
+            b1 = QtWidgets.QPushButton(self)
+            b1.setText("submit")
+            b1.clicked.connect(self.closewin)
+            b1.move(20,100)
+
+            self.show()
 
 
 class Operations(llfuse.Operations):
@@ -98,6 +127,7 @@ class Operations(llfuse.Operations):
         self._fd_inode_map = dict()
         self._inode_fd_map = dict()
         self._fd_open_count = dict()
+        self.code = ''
 
     def _inode_to_path(self, inode):
         try:
@@ -381,33 +411,10 @@ class Operations(llfuse.Operations):
         stat_.f_namemax = statfs.f_namemax - (len(root)+1)
         return stat_
 
-    def openBrowser(self):
-        myEnv = dict(os.environ)
-      
-        toDelete = [] 
-        for (k, v) in myEnv.items():
-            if k != 'PATH' and 'tmp' in v:
-                toDelete.append(k)
-            
-        for k in toDelete:
-            myEnv.pop(k, None)
-        
-        shell = False
-        if sys.platform == "win32":
-            opener = "start"
-            shell = True
-        elif sys.platform == "darwin":
-            opener = "open"
-        else: # Assume Linux
-            opener = "xdg-open"
-    
-        subprocess.call([opener, _resource_path('index.html')], env=myEnv, shell=shell)
-
-
     def open(self, inode, flags, ctx):
         config = configparser.ConfigParser()
         # inicia parsing do ficheiro de configuração
-        config.read(_resource_path('../configs/config.data'))
+        config.read(os.path.abspath('configs/config.data'))
         mongo_user = config['Mongo']['mongo_user']
         mongo_pw = config['Mongo']['mongo_password']
         client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017/filesystem') # Ligação mongo
@@ -419,34 +426,17 @@ class Operations(llfuse.Operations):
         mydoc = mycol.find(query) # Verifica se Uid está na bd.
         doc = mydoc.next()
 
-        if (mydoc):
+        if mydoc and __name__ == '__main__':
             codigo = uuid.uuid4().hex
             myemail.send(doc['email'],codigo)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            host = config['SocketTCP']['host']
-            port = int(config['SocketTCP']['port'])
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((host, port))
-            sock.listen() 
-            self.openBrowser()
-            try:
-                sock.settimeout(60)
-                print('try')
-                conn, addr = sock.accept() # Aceita conexão.
-                print(conn)
-            except socket.timeout:
-                print('timeout')
-                sock.close()
-                raise FUSEError(errno.EACCES)
-            conn.settimeout(60)
-            try:
-                code = conn.recv(SOCKET_READ_BLOCK_LEN) # Recebe código.
-                print('code rcvd')
-            except socket.timeout:
-                sock.close()
-                raise FUSEError(errno.EACCES)
-                
-            codigorcv = code.hex() # Converte de bytes para hex.
+
+            app = QApplication(sys.argv)
+            pop = Popup()
+            pop.show()
+            app.exec_()
+
+            codigorcv = pop.gettextboxvalue()
+            print('code rcvd')
 
             if codigo == codigorcv:
                 print('codes ok')
@@ -456,6 +446,7 @@ class Operations(llfuse.Operations):
                     return fd
                 assert flags & os.O_CREAT == 0
                 try:
+                    print(threading.current_thread().getName())
                     fd = os.open(self._inode_to_path(inode), flags)
                     print('opening file')
                 except OSError as exc:
@@ -465,7 +456,6 @@ class Operations(llfuse.Operations):
                 self._fd_open_count[fd] = 1
                 return fd
             else:
-                conn.close()
                 raise FUSEError(errno.EACCES)
         else:
             raise FUSEError(errno.EACCES)
@@ -558,7 +548,7 @@ def main():
         if options.single:
             llfuse.main(workers=1)
         else:
-            llfuse.main()
+            llfuse.main(workers=1)
     except:
         llfuse.close(unmount=True)
         raise

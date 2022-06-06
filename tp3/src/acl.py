@@ -1,26 +1,15 @@
 import sys, os
-import pymongo
 import os.path
-from os import stat, path
-from pwd import getpwuid,getpwnam  
+from os import path
+from pwd import getpwnam  
 from pymongo import MongoClient
 import configparser
 
-def _resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-        return os.path.join(base_path, "config.data")
-    except Exception:
-        base_path = os.path.abspath(".")
-        return os.path.join(base_path, relative_path)
-    
 # Insere dados numa coleção
 def insertData(file,userName,email):
     config = configparser.ConfigParser()
     # inicia parsing do ficheiro de configuração
-    config.read(_resource_path('../configs/config.data'))
+    config.read(os.path.abspath('configs/config.data'))
     mongo_user = config['Mongo']['mongo_user']
     mongo_pw = config['Mongo']['mongo_password']
     client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017/filesystem') # Ligação mongo

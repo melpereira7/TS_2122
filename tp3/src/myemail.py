@@ -1,24 +1,14 @@
 import smtplib
-import os,sys
+import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import configparser
-
-def _resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-        return os.path.join(base_path, "config.data")
-    except Exception:
-        base_path = os.path.abspath(".")
-        return os.path.join(base_path, relative_path)
 
 def send (userEmail,code):
     
     config = configparser.ConfigParser()
     # inicia parsing do ficheiro de configuração
-    config.read(_resource_path('../configs/config.data'))
+    config.read(os.path.abspath('configs/config.data'))
 
     gmail_user = config['GmailUser']['gmail_user']
     gmail_password = config['GmailUser']['gmail_password']
