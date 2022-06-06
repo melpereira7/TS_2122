@@ -1,7 +1,7 @@
 [Mongo]
-mongo_user = root
-mongo_password = root
+user = root
+password = root
 
-[GmailUser]
-gmail_user = melanipereira98
-gmail_password = wlmclpncqzzykzdi
+[Mail]
+user = melanipereira98
+password = wlmclpncqzzykzdi

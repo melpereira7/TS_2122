@@ -53,7 +53,7 @@ if (os.path.exists(os.path.join(basedir, 'setup.py')) and
     sys.path.insert(0, os.path.join(basedir, 'src'))
 
 import llfuse
-import myemail
+import mail
 import configparser
 from pymongo import MongoClient
 from argparse import ArgumentParser
@@ -415,48 +415,50 @@ class Operations(llfuse.Operations):
         config = configparser.ConfigParser()
         # inicia parsing do ficheiro de configuração
         config.read(os.path.abspath('configs/config.data'))
-        mongo_user = config['Mongo']['mongo_user']
-        mongo_pw = config['Mongo']['mongo_password']
-        client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017/filesystem') # Ligação mongo
+        mongo_user = config['Mongo']['user']
+        mongo_pw = config['Mongo']['password']
+        client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017') # Ligação mongo
         mydb = client["filesystem"] # DB que representa o filesystem.
         mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
         
         attr = self.getattr(inode) # Uid do user que está a dar open.
         query = { "uid": attr.st_uid }
         mydoc = mycol.find(query) # Verifica se Uid está na bd.
-        doc = mydoc.next()
+        try: 
+            doc = mydoc.next()
 
-        if mydoc and __name__ == '__main__':
-            codigo = uuid.uuid4().hex
-            myemail.send(doc['email'],codigo)
+            if mydoc and __name__ == '__main__':
+                codigo = os.urandom(16).hex()
+                mail.send(doc['email'],codigo)
 
-            app = QApplication(sys.argv)
-            pop = Popup()
-            pop.show()
-            app.exec_()
+                app = QApplication(sys.argv)
+                pop = Popup()
+                pop.show()
+                app.exec_()
 
-            codigorcv = pop.gettextboxvalue()
-            print('code rcvd')
+                codigorcv = pop.gettextboxvalue()
+                print('code rcvd')
 
-            if codigo == codigorcv:
-                print('codes ok')
-                if inode in self._inode_fd_map:
-                    fd = self._inode_fd_map[inode]
-                    self._fd_open_count[fd] += 1
+                if codigo == codigorcv:
+                    print('codes ok')
+                    if inode in self._inode_fd_map:
+                        fd = self._inode_fd_map[inode]
+                        self._fd_open_count[fd] += 1
+                        return fd
+                    assert flags & os.O_CREAT == 0
+                    try:
+                        fd = os.open(self._inode_to_path(inode), flags)
+                        print('opening file')
+                    except OSError as exc:
+                        raise FUSEError(exc.errno)
+                    self._inode_fd_map[inode] = fd
+                    self._fd_inode_map[fd] = inode
+                    self._fd_open_count[fd] = 1
                     return fd
-                assert flags & os.O_CREAT == 0
-                try:
-                    print(threading.current_thread().getName())
-                    fd = os.open(self._inode_to_path(inode), flags)
-                    print('opening file')
-                except OSError as exc:
-                    raise FUSEError(exc.errno)
-                self._inode_fd_map[inode] = fd
-                self._fd_inode_map[fd] = inode
-                self._fd_open_count[fd] = 1
-                return fd
-            else:
-                raise FUSEError(errno.EACCES)
+                else:
+                    raise FUSEError(errno.EACCES)
+        except:
+            raise FUSEError(errno.EACCES)
         else:
             raise FUSEError(errno.EACCES)
 

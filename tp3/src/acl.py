@@ -10,9 +10,9 @@ def insertData(file,userName,email):
     config = configparser.ConfigParser()
     # inicia parsing do ficheiro de configuração
     config.read(os.path.abspath('configs/config.data'))
-    mongo_user = config['Mongo']['mongo_user']
-    mongo_pw = config['Mongo']['mongo_password']
-    client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017/filesystem') # Ligação mongo
+    mongo_user = config['Mongo']['user']
+    mongo_pw = config['Mongo']['password']
+    client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017') # Ligação mongo
     mydb = client["filesystem"] # DB que representa o filesystem.
     collist = mydb.list_collection_names()
     if file not in collist: # Verifica se ficheiro já tem coleção.
