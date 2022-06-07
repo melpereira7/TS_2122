@@ -415,9 +415,9 @@ class Operations(llfuse.Operations):
         config = configparser.ConfigParser()
         # inicia parsing do ficheiro de configuração
         config.read(os.path.abspath('configs/config.data'))
-        mongo_user = config['Mongo']['user']
-        mongo_pw = config['Mongo']['password']
-        client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017') # Ligação mongo
+        user = config['Mongo']['user']
+        password = config['Mongo']['password']
+        client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017') # Ligação mongo
         mydb = client["filesystem"] # DB que representa o filesystem.
         mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
         

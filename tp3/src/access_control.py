@@ -6,39 +6,36 @@ from pymongo import MongoClient
 import configparser
 
 # Insere dados numa coleção
-def insertData(file,userName,email):
+def insertData(file,user_name,email):
     config = configparser.ConfigParser()
     # inicia parsing do ficheiro de configuração
     config.read(os.path.abspath('configs/config.data'))
-    mongo_user = config['Mongo']['user']
-    mongo_pw = config['Mongo']['password']
-    client = MongoClient('mongodb://' + mongo_user + ':' + mongo_pw + '@localhost:27017') # Ligação mongo
-    mydb = client["filesystem"] # DB que representa o filesystem.
-    collist = mydb.list_collection_names()
-    if file not in collist: # Verifica se ficheiro já tem coleção.
+    user = config['Mongo']['user']
+    password = config['Mongo']['password']
+    client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017') # Ligação mongo
+    mydb = client.fs # DB que representa o filesystem.
+    if file not in mydb.list_collection_names(): # Verifica se ficheiro já tem coleção.
         files = mydb[file]
     else:
         files = mydb.file
     
-    uid = getpwnam(userName).pw_uid # Uid associado ao user.
-
     # Inesere user uid associado ao email.
     file_data = {
-        'uid': uid,
+        'uid': getpwnam(user_name).pw_uid,
         'email': email
     }
 
     result = files.insert_one(file_data)
-    print('One post: {0}'.format(result.inserted_id))
+    print('Inserted?',result.acknowledged)
 
 # Validação de autorização
 def validateAccess(filename,userName):
-    if(path.exists(filename)): # Verifica se ficheiro existe.
+    if path.exists(filename): # Verifica se ficheiro existe.
         try:
             getpwnam(userName)
         except KeyError:
             print('User não existe no sistema.')
-        if os.getuid() ==  os.stat(sys.argv[1]).st_uid: # Verifica se é o owner do ficheiro.
+        if os.getuid() == os.stat(filename).st_uid:
             return True
         else:
             print("Não és o owner do ficheiro")
@@ -52,7 +49,7 @@ def main():
         if validateAccess(sys.argv[1],sys.argv[2]):
             insertData(sys.argv[1].split("/")[-1],sys.argv[2],sys.argv[3])
     else:
-        print("Tem de ter 3 argumentos")
+        print("Utilização: python3 access_control.py <caminho_ficheiro> <utilizador> <email>")
 
 if __name__ == "__main__":
     main()
