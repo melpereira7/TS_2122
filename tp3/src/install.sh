@@ -11,6 +11,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     sudo apt -y install python3-pip
     pip3 install pymongo
     sudo apt -y install python3-pyqt5
+    
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     brew install mongodb-community@5.0.7
     python3 -m pip3 install
