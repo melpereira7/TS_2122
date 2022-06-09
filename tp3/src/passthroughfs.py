@@ -412,22 +412,28 @@ class Operations(llfuse.Operations):
         return stat_
 
     def open(self, inode, flags, ctx):
+        
         config = configparser.ConfigParser()
         # inicia parsing do ficheiro de configuração
-        config.read(os.path.abspath('configs/config.data'))
+        config.read(os.path.abspath('config.ini'))
         user = config['Mongo']['user']
         password = config['Mongo']['password']
-        client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017') # Ligação mongo
-        mydb = client["filesystem"] # DB que representa o filesystem.
+        client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017/fs') # Ligação mongo
+       
+        mydb = client["fs"] # DB que representa o filesystem.
         mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
         
         attr = self.getattr(inode) # Uid do user que está a dar open.
         query = { "uid": attr.st_uid }
-        mydoc = mycol.find(query) # Verifica se Uid está na bd.
-        try: 
-            doc = mydoc.next()
 
-            if mydoc and __name__ == '__main__':
+        mydoc = mycol.find(query) # Verifica se Uid está na bd.
+        
+        try: 
+           
+            doc = mydoc.next()
+            
+
+            if mydoc:
                 codigo = os.urandom(16).hex()
                 mail.send(doc['email'],codigo)
 
@@ -539,10 +545,13 @@ def main():
     log.debug('Mounting...')
     fuse_options = set(llfuse.default_options)
     fuse_options.add('fsname=passthroughfs')
-    fuse_options.add('noappledouble')
-    fuse_options.add('noapplexattr')
+    if sys.platform == 'darwin':
+        fuse_options.add('noappledouble')
+        fuse_options.add('noapplexattr')
     if options.debug_fuse:
         fuse_options.add('debug')
+    if sys.platform == 'linux':
+        os.mkdir(options.mountpoint)
     llfuse.init(operations, options.mountpoint, fuse_options)
 
     try:
