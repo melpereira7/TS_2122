@@ -9,7 +9,7 @@ import configparser
 def insertData(file,user_name,email):
     config = configparser.ConfigParser()
     # inicia parsing do ficheiro de configuração
-    config.read(os.path.abspath('config.ini'))
+    config.read(os.path.abspath('../config.ini'))
     user = config['Mongo']['user']
     password = config['Mongo']['password']
     client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017/fs') # Ligação mongo

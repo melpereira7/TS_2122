@@ -59,9 +59,6 @@ from pymongo import MongoClient
 from argparse import ArgumentParser
 import errno
 import logging
-import uuid 
-import socket
-import subprocess
 import stat as stat_m
 from llfuse import FUSEError
 from os import fsencode, fsdecode
@@ -415,11 +412,10 @@ class Operations(llfuse.Operations):
         
         config = configparser.ConfigParser()
         # inicia parsing do ficheiro de configuração
-        config.read(os.path.abspath('config.ini'))
+        config.read(os.path.abspath('../config.ini'))
         user = config['Mongo']['user']
         password = config['Mongo']['password']
         client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017/fs') # Ligação mongo
-       
         mydb = client["fs"] # DB que representa o filesystem.
         mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
         
@@ -429,21 +425,18 @@ class Operations(llfuse.Operations):
         mydoc = mycol.find(query) # Verifica se Uid está na bd.
         
         try: 
-           
+            print('try')
             doc = mydoc.next()
-            
-
             if mydoc:
                 codigo = os.urandom(16).hex()
                 mail.send(doc['email'],codigo)
-
                 app = QApplication(sys.argv)
                 pop = Popup()
                 pop.show()
                 app.exec_()
 
                 codigorcv = pop.gettextboxvalue()
-                print('code rcvd')
+                print('code received')
 
                 if codigo == codigorcv:
                     print('codes ok')
@@ -550,7 +543,7 @@ def main():
         fuse_options.add('noapplexattr')
     if options.debug_fuse:
         fuse_options.add('debug')
-    if sys.platform == 'linux':
+    if sys.platform == 'linux' and not path.exists(options.mountpoint):
         os.mkdir(options.mountpoint)
     llfuse.init(operations, options.mountpoint, fuse_options)
 
@@ -565,7 +558,7 @@ def main():
         raise
 
     log.debug('Unmounting..')
-    llfuse.close()
+    llfuse.close(unmount=True)
 
 if __name__ == '__main__':
     main()

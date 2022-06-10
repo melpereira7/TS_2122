@@ -10,13 +10,19 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     sudo systemctl start mongod.service
     sudo apt -y install python3-pip
     pip3 install pymongo
+    pip3 install pyinstaller
     sudo apt -y install python3-pyqt5
+    pyinstaller --onefile passthroughfs.py
+    pyinstaller --onefile access_control.py
     
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    brew install mongodb-community@5.0.7
+    brew install mongodb-community
     python3 -m pip3 install
     pip3 install pymongo
+    pip3 install pyinstaller
     brew install pyqt@5
+    pyinstaller --onefile passthroughfs.py
+    pyinstaller --onefile access_control.py
 fi
 
 

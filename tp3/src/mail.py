@@ -5,7 +5,7 @@ import configparser
 
 def send(to,code):
     config = configparser.ConfigParser()
-    config.read(os.path.abspath('config.ini'))
+    config.read(os.path.abspath('../config.ini'))
     sender_email = config['Mail']['user']
     password = config['Mail']['password']
     
