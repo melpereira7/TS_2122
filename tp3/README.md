@@ -1,7 +1,7 @@
 # Pré requisitos
 
 + python3
-+ mongodb
++ mongodb (e ter o serviço do mongo ativo)
 + no caso do macOS, [macFUSE](https://osxfuse.github.io) instalado e devidas permissões dadas
 
 

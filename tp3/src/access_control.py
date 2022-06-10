@@ -35,8 +35,8 @@ def validateAccess(filename,userName,email):
         except KeyError:
             print('User não existe no sistema.')
             sys.exit()
-        if os.getuid() == os.stat(filename).st_uid:
-            if re.match('^[a-zA-Z0-9]+[\._]?[a-zA-Z0-9]+[@]\w+[.]\w{2,3}([.]\w{2,3})?$',email):
+        if os.getuid() == os.stat(filename).st_uid: # Verifica se o user é dono do ficheiro
+            if re.match('^[a-zA-Z0-9]+[\._]?[a-zA-Z0-9]+[@]\w+[.]\w{2,3}([.]\w{2,3})?$',email): # Verifica se email é válido
                 return True
             else:
                 print("Email inválido")
