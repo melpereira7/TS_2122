@@ -32,7 +32,7 @@ bash install.sh
 
 Ainda, é necessário preencher/alterar o ficheiro [config.ini](config.ini) com os dados necessários:
   + credenciais do utilizador criado na configuração da base de dados
-  + credenciais do utilizador Gmail do qual os emails serão enviados
+  + credenciais do utilizador Gmail do qual os emails serão enviados (para a autenticação ser bem sucedida, é necessário ter uma palavra-passe de aplicações, que pode ser obtida [aqui](https://myaccount.google.com/apppasswords?rapt=AEjHL4OkuDw_loyhKgzSEbWstzE0dw3VRZBhr-1Ka5VdL6YQ4TT-5gXfUuhszPHXY53Y89nFNCozdqxJkiUHIVWpa4LxmVJlhA))
 
 
 # Utilização

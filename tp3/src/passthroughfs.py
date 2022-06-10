@@ -533,7 +533,11 @@ def parse_args(args):
 def main():
     options = parse_args(sys.argv[1:])
     init_logging(options.debug)
-    operations = Operations(options.source)
+    if os.path.exists(options.source):
+        operations = Operations(options.source)
+    else:
+        print("A diretoria a copiar não existe!")
+        sys.exit()
 
     log.debug('Mounting...')
     fuse_options = set(llfuse.default_options)

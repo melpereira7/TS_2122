@@ -36,17 +36,19 @@ def validateAccess(filename,userName,email):
             getpwnam(userName)
         except KeyError:
             print('User não existe no sistema.')
+            sys.exit()
         if os.getuid() == os.stat(filename).st_uid:
             if re.match('^[a-zA-Z0-9]+[\._]?[a-zA-Z0-9]+[@]\w+[.]\w{2,3}([.]\w{2,3})?$',email):
                 return True
             else:
                 print("Email inválido")
+                sys.exit()
         else:
             print("Não és o owner do ficheiro")
-            return False
+            sys.exit()
     else:
         print("Ficheiro não existe")
-        return False
+        sys.exit()
 
 def main():
     if(len(sys.argv)==4):
