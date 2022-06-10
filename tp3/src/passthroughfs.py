@@ -543,7 +543,7 @@ def main():
         fuse_options.add('noapplexattr')
     if options.debug_fuse:
         fuse_options.add('debug')
-    if sys.platform == 'linux' and not path.exists(options.mountpoint):
+    if sys.platform == 'linux' and not os.path.exists(options.mountpoint):
         os.mkdir(options.mountpoint)
     llfuse.init(operations, options.mountpoint, fuse_options)
 
