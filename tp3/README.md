@@ -47,3 +47,4 @@ Num terminal, ir para a diretoria dist, criada na instalação, com `cd dist` (s
   ```
   ./passthroughfs.py <caminho da diretoria a copiar> <caminho da diretoria para onde copiar>
   ```
+  para abrir um ficheiro, se tiver acesso ao mesmo, será pedida a introdução de um código, previamente enviado para o email indicado aquando da adição de permissões
