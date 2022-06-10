@@ -9,18 +9,16 @@ import re
 # Insere dados numa coleção
 def insertData(file,user_name,email):
     config = configparser.ConfigParser()
-    # inicia parsing do ficheiro de configuração
     config.read(os.path.abspath('../config.ini'))
     user = config['Mongo']['user']
     password = config['Mongo']['password']
     client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017/fs') # Ligação mongo
-    mydb = client.fs # DB que representa o filesystem.
-    if file not in mydb.list_collection_names(): # Verifica se ficheiro já tem coleção.
+    mydb = client.fs # DB do filesystem.
+    if file not in mydb.list_collection_names():
         files = mydb[file]
     else:
         files = mydb.file
     
-    # Inesere user uid associado ao email.
     file_data = {
         'uid': getpwnam(user_name).pw_uid,
         'email': email
@@ -29,7 +27,7 @@ def insertData(file,user_name,email):
     result = files.insert_one(file_data)
     print('Inserted?',result.acknowledged)
 
-# Validação de autorização
+# Validação
 def validateAccess(filename,userName,email):
     if path.exists(filename): # Verifica se ficheiro existe.
         try:
