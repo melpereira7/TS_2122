@@ -11,6 +11,10 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     sudo apt -y install python3-pyqt5
     pyinstaller --onefile passthroughfs.py
     pyinstaller --onefile access_control.py
+    python3 -c '''
+import os
+from stat import *
+os.chmod("config.ini",S_IRUSR | S_IWUSR | S_IXUSR)'''
     
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     python3 -m pip3 install
@@ -19,6 +23,10 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     brew install pyqt@5
     pyinstaller --onefile passthroughfs.py
     pyinstaller --onefile access_control.py
+    python3 -c '''
+import os
+from stat import *
+os.chmod("config.ini",S_IRUSR | S_IWUSR | S_IXUSR)'''
 fi
 
 

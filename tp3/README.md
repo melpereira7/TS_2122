@@ -37,14 +37,14 @@ Ainda, é necessário preencher/alterar o ficheiro [config.ini](config.ini) com 
 
 # Utilização
 
-Num terminal, ir para a diretoria dist, criada na instalação, com `cd dist` (se já na direotia do script de instalação) ou `cd <caminho absoluto para dist>`. Nessa diretoria:
+Num terminal, ir para a diretoria dist, criada na instalação, com `cd dist` (se já na diretoria do script de instalação) ou `cd <caminho absoluto para dist>`. Nessa diretoria:
 
 + adicionar permissões
   ```
-  ./access_control.py <caminho do ficheiro> <nome do utilizador> <email>
+  ./access_control <caminho do ficheiro> <nome do utilizador> <email>
   ```
 + iniciar o sistema de ficheiros virtual
   ```
-  ./passthroughfs.py <caminho da diretoria a copiar> <caminho da diretoria para onde copiar>
+  ./passthroughfs <caminho da diretoria a copiar> <caminho da diretoria para onde copiar>
   ```
   para abrir um ficheiro, se tiver acesso ao mesmo, será pedida a introdução de um código, previamente enviado para o email indicado aquando da adição de permissões
