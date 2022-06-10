@@ -13,7 +13,6 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     pyinstaller --onefile access_control.py
     
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    brew install mongodb-community
     python3 -m pip3 install
     pip3 install pymongo
     pip3 install pyinstaller
