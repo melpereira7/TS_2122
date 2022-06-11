@@ -3,7 +3,7 @@
 + python3
 + mongodb (e ter o serviço do mongo ativo)
 + no caso do macOS, [macFUSE](https://osxfuse.github.io) instalado e devidas permissões dadas
-
++ o utilizador ter uma conta no serviço Gmail
 
 # Instalação de dependências
 

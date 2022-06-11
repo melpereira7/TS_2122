@@ -43,7 +43,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import os
 import sys
-import threading
+from idna import InvalidCodepoint
 
 # If we are running from the Python-LLFUSE source directory, try
 # to load the module from there first.
@@ -65,7 +65,7 @@ from os import fsencode, fsdecode
 from collections import defaultdict
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
-from PyQt5.QtCore import QThread
+import time
 
 
 SOCKET_READ_BLOCK_LEN = 16 # bytes
@@ -124,7 +124,7 @@ class Operations(llfuse.Operations):
         self._fd_inode_map = dict()
         self._inode_fd_map = dict()
         self._fd_open_count = dict()
-        self.code = ''
+        self.inode_opened = {}
 
     def _inode_to_path(self, inode):
         try:
@@ -409,57 +409,74 @@ class Operations(llfuse.Operations):
         return stat_
 
     def open(self, inode, flags, ctx):
-        
-        config = configparser.ConfigParser()
-        # inicia parsing do ficheiro de configuração
-        config.read(os.path.abspath('../config.ini'))
-        user = config['Mongo']['user']
-        password = config['Mongo']['password']
-        client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017/fs') # Ligação mongo
-        mydb = client["fs"] # DB que representa o filesystem.
-        mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
-        
-        attr = self.getattr(inode) # Uid do user que está a dar open.
-        query = { "uid": attr.st_uid }
+        if inode not in self.inode_opened or (inode in self.inode_opened and time.time() - self.inode_opened[inode] > 5*60):
+            config = configparser.ConfigParser()
+            # inicia parsing do ficheiro de configuração
+            config.read(os.path.abspath('../config.ini'))
+            user = config['Mongo']['user']
+            password = config['Mongo']['password']
+            client = MongoClient('mongodb://' + user + ':' + password + '@localhost:27017/fs') # Ligação mongo
+            mydb = client["fs"] # DB que representa o filesystem.
+            mycol = mydb[self._inode_to_path(inode).split('/')[-1]] # Coleção mongo.
+            
+            attr = self.getattr(inode) # Uid do user que está a dar open.
+            query = { "uid": attr.st_uid }
 
-        mydoc = mycol.find(query) # Verifica se Uid está na bd.
-        
-        try: 
-            print('try')
-            doc = mydoc.next()
-            if mydoc:
-                codigo = os.urandom(16).hex()
-                mail.send(doc['email'],codigo)
-                app = QApplication(sys.argv)
-                pop = Popup()
-                pop.show()
-                app.exec_()
+            mydoc = mycol.find(query) # Verifica se Uid está na bd.
+            
+            try: 
+                doc = mydoc.next()
+                if mydoc:
+                    codigo = os.urandom(16).hex()
+                    mail.send(doc['email'],codigo)
+                    app = QApplication(sys.argv)
+                    pop = Popup()
+                    pop.show()
+                    app.exec_()
 
-                codigorcv = pop.gettextboxvalue()
-                print('code received')
+                    codigorcv = pop.gettextboxvalue()
+                    print('code received')
 
-                if codigo == codigorcv:
-                    print('codes ok')
-                    if inode in self._inode_fd_map:
-                        fd = self._inode_fd_map[inode]
-                        self._fd_open_count[fd] += 1
+                    if codigo == codigorcv:
+                        print('codes ok')
+                        if inode in self._inode_fd_map:
+                            fd = self._inode_fd_map[inode]
+                            self._fd_open_count[fd] += 1
+                            self.inode_opened[inode] = time.time()
+                            return fd
+                        assert flags & os.O_CREAT == 0
+                        try:
+                            fd = os.open(self._inode_to_path(inode), flags)
+                            print('opening file')
+                        except OSError as exc:
+                            raise FUSEError(exc.errno)
+                        self._inode_fd_map[inode] = fd
+                        self._fd_inode_map[fd] = inode
+                        self._fd_open_count[fd] = 1
+                        self.inode_opened[inode] = time.time()
                         return fd
-                    assert flags & os.O_CREAT == 0
-                    try:
-                        fd = os.open(self._inode_to_path(inode), flags)
-                        print('opening file')
-                    except OSError as exc:
-                        raise FUSEError(exc.errno)
-                    self._inode_fd_map[inode] = fd
-                    self._fd_inode_map[fd] = inode
-                    self._fd_open_count[fd] = 1
-                    return fd
-                else:
-                    raise FUSEError(errno.EACCES)
-        except:
-            raise FUSEError(errno.EACCES)
+                    else:
+                        raise FUSEError(errno.EACCES)
+            except:
+                raise FUSEError(errno.EACCES)
+            else:
+                raise FUSEError(errno.EACCES)
         else:
-            raise FUSEError(errno.EACCES)
+            if inode in self._inode_fd_map:
+                fd = self._inode_fd_map[inode]
+                self._fd_open_count[fd] += 1
+                print('opening without code')
+                return fd
+            assert flags & os.O_CREAT == 0
+            try:
+                fd = os.open(self._inode_to_path(inode), flags)
+            except OSError as exc:
+                raise FUSEError(exc.errno)
+            self._inode_fd_map[inode] = fd
+            self._fd_inode_map[fd] = inode
+            self._fd_open_count[fd] = 1
+            print('opening without code')
+            return fd        
 
     def create(self, inode_p, name, mode, flags, ctx):
         path = os.path.join(self._inode_to_path(inode_p), fsdecode(name))
